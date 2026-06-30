@@ -1,0 +1,10 @@
+# Bob / Superpowers
+.superpowers/
+docs/
+
+# macOS
+.DS_Store
+
+# Editor
+.vscode/
+.idea/
