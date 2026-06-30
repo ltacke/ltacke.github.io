@@ -1082,7 +1082,6 @@ const InfoOverlay = {
             <div class="card-tile-img">
               <img :src="'./Sonderkarten-Bilder copy/' + card.image" :alt="card.name" />
             </div>
-            <span>{{ card.name }}</span>
           </button>
         </div>
         <div class="card-detail">
