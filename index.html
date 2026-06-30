@@ -342,36 +342,59 @@
       padding: 4px;
     }
 
-    /* Card grid */
-    .card-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 10px;
-      margin-bottom: 16px;
+    /* Card scroll strip */
+    .card-strip {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding-bottom: 10px;
+      margin-bottom: 14px;
+      -webkit-overflow-scrolling: touch;
     }
+    .card-strip::-webkit-scrollbar { display: none; }
     .card-tile {
-      border: 2px solid #e5e7eb;
-      border-radius: 10px;
-      padding: 8px 4px 6px;
+      flex-shrink: 0;
+      width: 56px;
       text-align: center;
       cursor: pointer;
+      background: none;
+      border: none;
+      padding: 0;
+    }
+    .card-tile-img {
+      border: 2px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 3px;
       background: white;
     }
-    .card-tile.active { border-color: #3b82d4; background: #eff6ff; }
-    .card-tile img { width: 100%; aspect-ratio: 2/3; object-fit: cover; border-radius: 6px; }
-    .card-tile span { display: block; font-size: 11px; font-weight: 600; margin-top: 4px; color: #1f2328; }
+    .card-tile.active .card-tile-img { border-color: #3b82d4; background: #eff6ff; }
+    .card-tile img { width: 44px; height: 66px; object-fit: cover; border-radius: 5px; display: block; }
+    .card-tile span { display: block; font-size: 9px; font-weight: 600; margin-top: 4px; color: #1f2328; }
 
     /* Card detail */
     .card-detail {
-      background: #f7f8fa;
+      background: #eff6ff;
       border-radius: 10px;
-      padding: 14px;
+      padding: 12px;
+      border-left: 3px solid #3b82d4;
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
     }
-    .card-detail h3 { font-size: 15px; font-weight: 700; margin-bottom: 10px; }
-    .card-detail ul { padding-left: 16px; margin-bottom: 0; }
-    .card-detail li { font-size: 13px; line-height: 1.6; color: #1f2328; margin-bottom: 2px; }
-    .card-detail .detail-notes { margin-top: 8px; }
-    .card-detail .detail-notes li { color: #57606a; }
+    .card-detail-img {
+      width: 52px;
+      height: 78px;
+      object-fit: cover;
+      border-radius: 6px;
+      flex-shrink: 0;
+      background: #dbeafe;
+    }
+    .card-detail-body { flex: 1; min-width: 0; }
+    .card-detail-body h3 { font-size: 13px; font-weight: 700; margin-bottom: 6px; }
+    .card-detail-body ul { padding-left: 14px; margin-bottom: 0; }
+    .card-detail-body li { font-size: 12px; line-height: 1.65; color: #1f2328; margin-bottom: 1px; }
+    .card-detail-body .detail-notes { margin-top: 6px; }
+    .card-detail-body .detail-notes li { color: #57606a; }
 
     /* Profile avatar circle */
     .avatar {

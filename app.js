@@ -1058,9 +1058,9 @@ const InfoOverlay = {
   props: ['show'],
   emits: ['close'],
   setup() {
-    const selected = ref(null);
+    const selected = ref(sonderkartenData[0]);
     function select(card) {
-      selected.value = selected.value?.name === card.name ? null : card;
+      selected.value = card;
     }
     return { cards: sonderkartenData, selected, select };
   },
@@ -1071,7 +1071,7 @@ const InfoOverlay = {
           <h2>Sonderkarten</h2>
           <button class="overlay-close" @click="$emit('close')">✕</button>
         </div>
-        <div class="card-grid">
+        <div class="card-strip">
           <button
             v-for="card in cards"
             :key="card.name"
@@ -1079,18 +1079,23 @@ const InfoOverlay = {
             :class="{ active: selected?.name === card.name }"
             @click="select(card)"
           >
-            <img :src="'./Sonderkarten-Bilder copy/' + card.image" :alt="card.name" />
+            <div class="card-tile-img">
+              <img :src="'./Sonderkarten-Bilder copy/' + card.image" :alt="card.name" />
+            </div>
             <span>{{ card.name }}</span>
           </button>
         </div>
-        <div v-if="selected" class="card-detail">
-          <h3>{{ selected.name }}</h3>
-          <ul>
-            <li v-for="rule in selected.rules" :key="rule">{{ rule }}</li>
-          </ul>
-          <ul v-if="selected.notes.length" class="detail-notes">
-            <li v-for="note in selected.notes" :key="note">{{ note }}</li>
-          </ul>
+        <div class="card-detail">
+          <img class="card-detail-img" :src="'./Sonderkarten-Bilder copy/' + selected.image" :alt="selected.name" />
+          <div class="card-detail-body">
+            <h3>{{ selected.name }}</h3>
+            <ul>
+              <li v-for="rule in selected.rules" :key="rule">{{ rule }}</li>
+            </ul>
+            <ul v-if="selected.notes.length" class="detail-notes">
+              <li v-for="note in selected.notes" :key="note">{{ note }}</li>
+            </ul>
+          </div>
         </div>
       </div>
     </div>
