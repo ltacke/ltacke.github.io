@@ -457,12 +457,14 @@ const HistoryScreen = {
 // ─── SetupScreen ──────────────────────────────────────────────────────────────
 
 const SetupScreen = {
+  components: { ProfileFormOverlay },
   setup(_, { emit }) {
     const playerCount = ref(4);
     const playerNames = ref(['', '', '', '']);
     const mode = ref('normal');
     const selectedRounds = ref(null);
     const focusedIndex = ref(null);
+    const newProfileIndex = ref(null); // index van het veld waarvoor profiel aangemaakt wordt
 
     const maxRounds = computed(() => roundCount(playerCount.value));
     const effectiveRounds = computed(() => selectedRounds.value ?? maxRounds.value);
@@ -508,13 +510,29 @@ const SetupScreen = {
       return state.profiles.find(p => p.name.toLowerCase() === name) ?? null;
     }
 
+    // Vorausgefülltes editProfile-Objekt für neues Profil
+    const newProfilePrefill = computed(() => {
+      if (newProfileIndex.value === null) return null;
+      return { name: playerNames.value[newProfileIndex.value]?.trim() ?? '' };
+    });
+
+    function openNewProfile(i) {
+      newProfileIndex.value = i;
+    }
+
+    function onProfileSaved() {
+      newProfileIndex.value = null;
+    }
+
     return {
       playerCount, playerNames, mode, selectedRounds, maxRounds, effectiveRounds,
       setPlayerCount, canStart, startGame,
       focusedIndex, suggestions, pickSuggestion, profileFor,
+      newProfileIndex, newProfilePrefill, openNewProfile, onProfileSaved,
     };
   },
   template: `
+    <div style="display:contents">
     <div class="screen">
       <p class="section-title">Spieler</p>
       <div style="display:flex;gap:8px;margin-bottom:16px">
@@ -536,6 +554,12 @@ const SetupScreen = {
             @focus="focusedIndex = i"
             @blur="setTimeout(() => { if (focusedIndex === i) focusedIndex = null }, 150)"
           />
+          <button
+            v-if="playerNames[i].trim() && !profileFor(i)"
+            class="btn btn-secondary"
+            style="padding:6px 10px;font-size:12px;white-space:nowrap;flex-shrink:0"
+            @click="openNewProfile(i)"
+          >＋ Profil</button>
         </div>
         <div v-if="focusedIndex === i && suggestions(i).length" class="suggest-dropdown">
           <button
@@ -574,6 +598,13 @@ const SetupScreen = {
       <button class="btn btn-secondary" style="flex:0 0 80px" @click="$emit('navigate', 'history')">← Zurück</button>
       <button class="btn btn-primary" style="flex:1" :disabled="!canStart" @click="startGame">Spiel starten</button>
     </div>
+    <ProfileFormOverlay
+      :show="newProfileIndex !== null"
+      :editProfile="newProfilePrefill"
+      @close="newProfileIndex = null"
+      @saved="onProfileSaved"
+    />
+    </div>
   `,
   emits: ['navigate'],
 };
@@ -584,6 +615,10 @@ const PredictionScreen = {
   setup(_, { emit }) {
     const game = computed(() => activeGame.value);
     const round = computed(() => activeRound.value);
+
+    function photoFor(playerName) {
+      return state.profiles.find(p => p.name.toLowerCase() === playerName?.toLowerCase())?.photo ?? null;
+    }
 
     const order = computed(() => {
       if (!round.value || !game.value) return [];
@@ -671,7 +706,7 @@ const PredictionScreen = {
     return {
       game, round, order, draft, dealer, playerAt, isDealer,
       currentTurnSeat, forbidden, canSubmit, setPrediction, submitPredictions,
-      predictionSum,
+      predictionSum, photoFor,
     };
   },
   template: `
@@ -687,13 +722,17 @@ const PredictionScreen = {
 
       <div v-for="seatIndex in order" :key="seatIndex">
         <div class="player-row">
-          <div>
-            <div class="player-name">
-              {{ playerAt(seatIndex)?.name }}
-              <span v-if="isDealer(seatIndex)" class="dealer-badge">Dealer</span>
-            </div>
-            <div v-if="forbidden(seatIndex) !== null" class="warning">
-              Nicht erlaubt: {{ forbidden(seatIndex) }}
+          <div style="display:flex;align-items:center;gap:10px">
+            <img v-if="photoFor(playerAt(seatIndex)?.name)" :src="photoFor(playerAt(seatIndex)?.name)" class="avatar" style="width:36px;height:36px" />
+            <div v-else class="avatar-placeholder" style="width:36px;height:36px;font-size:16px">👤</div>
+            <div>
+              <div class="player-name">
+                {{ playerAt(seatIndex)?.name }}
+                <span v-if="isDealer(seatIndex)" class="dealer-badge">Dealer</span>
+              </div>
+              <div v-if="forbidden(seatIndex) !== null" class="warning">
+                Nicht erlaubt: {{ forbidden(seatIndex) }}
+              </div>
             </div>
           </div>
           <div class="stepper">
@@ -853,11 +892,15 @@ const TricksScreen = {
       setScreen('prediction');
     }
 
+    function photoFor(playerName) {
+      return state.profiles.find(p => p.name.toLowerCase() === playerName?.toLowerCase())?.photo ?? null;
+    }
+
     return {
       game, round, trickDraft, specialOpen, bombCount, cloudCount, available,
       trickSum, isValid, setTricks, predictionFor, cumulativeFor,
       addBomb, removeBomb, cloudPickerId, openCloudPicker, applyCloud, removeCloud,
-      submitTricks, goBackToPrediction,
+      submitTricks, goBackToPrediction, photoFor,
     };
   },
   template: `
@@ -920,12 +963,16 @@ const TricksScreen = {
       <!-- Trick inputs -->
       <div v-for="player in game.players" :key="player.id">
         <div class="player-row">
-          <div>
-            <div class="player-name">{{ player.name }}</div>
-            <div class="player-meta">
-              Ansage: {{ predictionFor(player.id)?.adjustedValue ?? '?' }}
-              <span v-if="predictionFor(player.id)?.cloudAdjustment" style="color:#3b82d4"> (☁️{{ predictionFor(player.id).originalValue }}→{{ predictionFor(player.id).adjustedValue }})</span>
-              · Gesamt: {{ cumulativeFor(player.id) }}
+          <div style="display:flex;align-items:center;gap:10px">
+            <img v-if="photoFor(player.name)" :src="photoFor(player.name)" class="avatar" style="width:36px;height:36px" />
+            <div v-else class="avatar-placeholder" style="width:36px;height:36px;font-size:16px">👤</div>
+            <div>
+              <div class="player-name">{{ player.name }}</div>
+              <div class="player-meta">
+                Ansage: {{ predictionFor(player.id)?.adjustedValue ?? '?' }}
+                <span v-if="predictionFor(player.id)?.cloudAdjustment" style="color:#3b82d4"> (☁️{{ predictionFor(player.id).originalValue }}→{{ predictionFor(player.id).adjustedValue }})</span>
+                · Gesamt: {{ cumulativeFor(player.id) }}
+              </div>
             </div>
           </div>
           <div class="stepper">
