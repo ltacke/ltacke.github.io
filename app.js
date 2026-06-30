@@ -418,14 +418,14 @@ const HistoryScreen = {
 
       <!-- Players tab -->
       <template v-if="tab === 'players'">
-        <div v-if="state.profiles.length === 0" style="text-align:center;padding:40px 0;color:#57606a">
+        <div v-if="profiles.length === 0" style="text-align:center;padding:40px 0;color:#57606a">
           <div style="font-size:48px;margin-bottom:16px">👤</div>
           <p style="font-weight:600;margin-bottom:6px">Noch keine Profile</p>
           <p style="font-size:13px">Lege ein Profil an um Statistiken zu sehen.</p>
         </div>
         <div v-else>
           <p class="section-title">Spielerprofile</p>
-          <div v-for="profile in state.profiles" :key="profile.id" class="profile-row" @click="openDetail(profile)" style="cursor:pointer">
+          <div v-for="profile in profiles" :key="profile.id" class="profile-row" @click="openDetail(profile)" style="cursor:pointer">
             <img v-if="profile.photo" :src="profile.photo" class="avatar" style="width:40px;height:40px" />
             <div v-else class="avatar-placeholder" style="width:40px;height:40px;font-size:16px">👤</div>
             <div class="profile-row-info">
