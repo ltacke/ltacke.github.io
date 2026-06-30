@@ -1080,12 +1080,12 @@ const InfoOverlay = {
             @click="select(card)"
           >
             <div class="card-tile-img">
-              <img :src="'./Sonderkarten-Bilder copy/' + card.image" :alt="card.name" />
+              <img :src="'./Sonderkarten-Bilder/' + card.image" :alt="card.name" />
             </div>
           </button>
         </div>
         <div class="card-detail">
-          <img class="card-detail-img" :src="'./Sonderkarten-Bilder copy/' + selected.image" :alt="selected.name" />
+          <img class="card-detail-img" :src="'./Sonderkarten-Bilder/' + selected.image" :alt="selected.name" />
           <div class="card-detail-body">
             <h3>{{ selected.name }}</h3>
             <ul>
