@@ -2,6 +2,8 @@
 import { createApp, reactive, computed, ref } from 'vue';
 import {
   createGame, saveGames, loadGames, roundCount,
+  predictionOrder, forbiddenDealerPrediction, calculateRoundScores,
+  effectiveBombCount,
 } from './logic.js';
 
 // ─── Global State ────────────────────────────────────────────────────────────
@@ -199,10 +201,150 @@ const SetupScreen = {
   emits: ['navigate'],
 };
 
+// ─── PredictionScreen ─────────────────────────────────────────────────────────
+
+const PredictionScreen = {
+  setup(_, { emit }) {
+    const game = computed(() => activeGame.value);
+    const round = computed(() => activeRound.value);
+
+    const order = computed(() => {
+      if (!round.value || !game.value) return [];
+      return predictionOrder(round.value.dealerSeatIndex, game.value.playerCount);
+    });
+
+    // local draft predictions: seatIndex → value
+    const draft = reactive({});
+    function initDraft() {
+      if (!game.value) return;
+      game.value.players.forEach((_, i) => {
+        draft[i] = round.value?.predictions.find(p =>
+          p.playerId === game.value.players[i].id
+        )?.originalValue ?? 0;
+      });
+    }
+    initDraft();
+
+    const dealer = computed(() => {
+      if (!round.value || !game.value) return null;
+      return game.value.players[round.value.dealerSeatIndex];
+    });
+
+    function playerAt(seatIndex) {
+      return game.value?.players[seatIndex] ?? null;
+    }
+
+    function isDealer(seatIndex) {
+      return seatIndex === round.value?.dealerSeatIndex;
+    }
+
+    const submittedCount = ref(0);
+
+    const currentTurnSeat = computed(() => order.value[submittedCount.value] ?? null);
+
+    function forbidden(seatIndex) {
+      if (!isDealer(seatIndex) || !game.value || !round.value) return null;
+      const others = order.value.slice(0, -1).map(si => draft[si]);
+      return forbiddenDealerPrediction(
+        others,
+        round.value.availableTricksAfterBombs,
+        game.value.mode,
+        round.value.roundNumber
+      );
+    }
+
+    function canSubmit() {
+      if (!game.value || !round.value) return false;
+      // all players have a value set
+      const allSet = order.value.every(si => draft[si] !== undefined && draft[si] !== null);
+      if (!allSet) return false;
+      // dealer's value not forbidden
+      const f = forbidden(round.value.dealerSeatIndex);
+      return f === null || draft[round.value.dealerSeatIndex] !== f;
+    }
+
+    function setPrediction(seatIndex, value) {
+      draft[seatIndex] = Math.max(0, Math.min(round.value?.cardsPerPlayer ?? 0, value));
+    }
+
+    function submitPredictions() {
+      if (!canSubmit() || !game.value || !round.value) return;
+      const predictions = game.value.players.map((p, i) => ({
+        playerId: p.id,
+        originalValue: draft[i],
+        adjustedValue: draft[i],
+        cloudAdjustment: null,
+        isDealerPrediction: i === round.value.dealerSeatIndex,
+      }));
+      const updatedRound = {
+        ...round.value,
+        predictions,
+        phase: 'trickRecording',
+      };
+      const updatedGame = {
+        ...game.value,
+        rounds: game.value.rounds.map(r => r.roundNumber === updatedRound.roundNumber ? updatedRound : r),
+      };
+      updateGame(updatedGame);
+      setScreen('tricks');
+    }
+
+    const predictionSum = computed(() => order.value.reduce((sum, si) => sum + (draft[si] ?? 0), 0));
+
+    return {
+      game, round, order, draft, dealer, playerAt, isDealer,
+      currentTurnSeat, forbidden, canSubmit, setPrediction, submitPredictions,
+      predictionSum,
+    };
+  },
+  template: `
+    <div v-if="round" class="screen">
+      <div class="card" style="margin-bottom:16px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span class="info">{{ round.cardsPerPlayer }} Karten · Dealer:
+            <span style="color:#7c5cd8;font-weight:600">{{ dealer?.name }}</span>
+          </span>
+          <span class="info">Σ {{ predictionSum }} / {{ round.availableTricksAfterBombs }}</span>
+        </div>
+      </div>
+
+      <div v-for="seatIndex in order" :key="seatIndex">
+        <div class="player-row">
+          <div>
+            <div class="player-name">
+              {{ playerAt(seatIndex)?.name }}
+              <span v-if="isDealer(seatIndex)" class="dealer-badge">Dealer</span>
+            </div>
+            <div v-if="forbidden(seatIndex) !== null" class="warning">
+              Nicht erlaubt: {{ forbidden(seatIndex) }}
+            </div>
+          </div>
+          <div class="stepper">
+            <button @click="setPrediction(seatIndex, draft[seatIndex] - 1)"
+              :disabled="draft[seatIndex] <= 0">−</button>
+            <span class="value"
+              :style="forbidden(seatIndex) !== null && draft[seatIndex] === forbidden(seatIndex) ? 'color:#dc2626' : ''">
+              {{ draft[seatIndex] }}
+            </span>
+            <button @click="setPrediction(seatIndex, draft[seatIndex] + 1)"
+              :disabled="draft[seatIndex] >= round.cardsPerPlayer">+</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="sticky-footer">
+      <button class="btn btn-primary" :disabled="!canSubmit()" @click="submitPredictions">
+        Ansagen bestätigen
+      </button>
+    </div>
+  `,
+  emits: ['navigate'],
+};
+
 // ─── App Root ────────────────────────────────────────────────────────────────
 
 const App = {
-  components: { HistoryScreen, SetupScreen },
+  components: { HistoryScreen, SetupScreen, PredictionScreen },
   setup() {
     const inGame = computed(() => activeGame.value !== null && !['history', 'setup'].includes(state.currentScreen));
     const roundLabel = computed(() => {
@@ -227,6 +369,7 @@ const App = {
 
     <HistoryScreen v-if="state.currentScreen === 'history'" @navigate="navigate" />
     <SetupScreen v-else-if="state.currentScreen === 'setup'" @navigate="navigate" />
+    <PredictionScreen v-else-if="state.currentScreen === 'prediction'" @navigate="navigate" />
     <div v-else class="screen" style="display:flex;align-items:center;justify-content:center;color:#57606a">
       Weitere Screens folgen…
     </div>
