@@ -1,3 +1,120 @@
+const sonderkartenData = [
+  {
+    name: 'Gestaltenwandler',
+    image: 'Gestaltenwandler.png',
+    rules: [
+      'Beim Ausspielen entscheidest du: Narr oder Zauberer.',
+      'Wird danach exakt wie die gewählte Karte behandelt.',
+    ],
+    notes: [
+      'Trumpfbestimmung: Geber bestimmt die Trumpffarbe.',
+    ],
+  },
+  {
+    name: 'Drache',
+    image: 'Drache.png',
+    rules: [
+      'Höchste Karte im Spiel — schlägt alles, außer die Fee.',
+      'Gewinnt jeden Stich, in dem er liegt (außer gegen Fee).',
+    ],
+    notes: [
+      'Trumpfbestimmung: Geber bestimmt Trumpf.',
+      'Als erste Karte gespielt: verhält sich wie ein Zauberer.',
+    ],
+  },
+  {
+    name: 'Fee',
+    image: 'Fee.png',
+    rules: [
+      'Niedrigste Karte im Spiel — verliert jeden Stich.',
+      'Ausnahme: schlägt den Drachen, wenn beide im Stich liegen.',
+    ],
+    notes: [
+      'Trumpfbestimmung: kein Trumpf.',
+      'Als erste Karte gespielt: verhält sich wie ein Narr.',
+    ],
+  },
+  {
+    name: 'Bombe',
+    image: 'Bombe.png',
+    rules: [
+      'Der Stich zählt nicht und gehört niemandem.',
+      'Kein Einfluss auf Stichvorhersagen.',
+      'Der Spieler, der ohne Bombe gewonnen hätte, eröffnet den nächsten Stich.',
+    ],
+    notes: [
+      'Trumpfbestimmung: kein Trumpf.',
+      'Als erste Karte gespielt: wie ein Narr.',
+    ],
+  },
+  {
+    name: 'Werwolf',
+    image: 'Werwolf.png',
+    rules: [
+      'Zu Beginn der Runde: tausche ihn gegen die aufgedeckte Trumpfkarte.',
+      'Bestimme danach selbst eine Trumpffarbe oder „kein Trumpf".',
+      'Erst danach beginnen die Vorhersagen.',
+    ],
+    notes: [
+      'Trumpfbestimmung: Geber bestimmt Trumpf.',
+    ],
+  },
+  {
+    name: 'Jongleur',
+    image: 'Jongleur.png',
+    rules: [
+      'Wert: 7,5 (zwischen 7 und 8).',
+      'Beim Spielen bestimmst du seine Farbe (auch Trumpf möglich).',
+      'Nach dem Stich: alle geben gleichzeitig 1 Karte nach links weiter.',
+      'Die Weitergabe entfällt nur im letzten Stich — nicht bei Bombe.',
+    ],
+    notes: [
+      'Trumpfbestimmung: Geber bestimmt Trumpf.',
+      'Als erste Karte: angesagte Farbe muss bedient werden.',
+    ],
+  },
+  {
+    name: 'Wolke',
+    image: 'Wolke.png',
+    rules: [
+      'Wert: 9,75 (zwischen 9 und 10).',
+      'Beim Spielen bestimmst du die Farbe.',
+      'Am Ende der Runde: Besitzer muss Vorhersage um +1 oder −1 ändern.',
+      'Ausnahme: zusammen mit Bombe → keine Änderung.',
+    ],
+    notes: [
+      'Trumpfbestimmung: Geber bestimmt Trumpf.',
+      'Als erste Karte: angesagte Farbe muss bedient werden.',
+    ],
+  },
+  {
+    name: 'Vampir',
+    image: 'Vampir.png',
+    rules: [
+      'Kopiert die Karte, die zur Trumpfbestimmung aufgedeckt wurde — inkl. all ihrer Effekte.',
+      'Liegt ein Werwolf als Trumpfkarte, wird sofort eine neue Karte aufgedeckt (diese wird kopiert).',
+    ],
+    notes: [
+      'Bedienen: Muss nicht als Trumpf bedient werden.',
+      'Eröffnest du den Stich: Bedienregeln der kopierten Karte gelten.',
+    ],
+  },
+  {
+    name: 'Hexe',
+    image: 'Hexe.png',
+    rules: [
+      'Niedrigerer Wert als Narr und Fee — verliert immer den Stich.',
+      'Nach Stichauswertung: lege eine Handkarte in den Stich, nimm eine beliebige Karte daraus auf die Hand.',
+      'Die in den Stich gelegte Karte hat keinen Effekt.',
+    ],
+    notes: [
+      'Trumpfbestimmung: kein Trumpf.',
+      'Eröffnest du den Stich: wie ein Narr (keine Farbe muss bedient werden).',
+    ],
+  },
+];
+
+
 // app.js
 import { createApp, reactive, computed, ref } from 'vue';
 import {
@@ -682,10 +799,54 @@ const ResultsScreen = {
 
 // ─── App Root ────────────────────────────────────────────────────────────────
 
+const InfoOverlay = {
+  props: ['show'],
+  emits: ['close'],
+  setup() {
+    const selected = ref(null);
+    function select(card) {
+      selected.value = selected.value?.name === card.name ? null : card;
+    }
+    return { cards: sonderkartenData, selected, select };
+  },
+  template: `
+    <div v-if="show" class="overlay-scrim" @click.self="$emit('close')">
+      <div class="overlay-panel">
+        <div class="overlay-header">
+          <h2>Sonderkarten</h2>
+          <button class="overlay-close" @click="$emit('close')">✕</button>
+        </div>
+        <div class="card-grid">
+          <button
+            v-for="card in cards"
+            :key="card.name"
+            class="card-tile"
+            :class="{ active: selected?.name === card.name }"
+            @click="select(card)"
+          >
+            <img :src="'./Sonderkarten-Bilder copy/' + card.image" :alt="card.name" />
+            <span>{{ card.name }}</span>
+          </button>
+        </div>
+        <div v-if="selected" class="card-detail">
+          <h3>{{ selected.name }}</h3>
+          <ul>
+            <li v-for="rule in selected.rules" :key="rule">{{ rule }}</li>
+          </ul>
+          <ul v-if="selected.notes.length" class="detail-notes">
+            <li v-for="note in selected.notes" :key="note">{{ note }}</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  `,
+};
+
 const App = {
-  components: { HistoryScreen, SetupScreen, PredictionScreen, TricksScreen, GridScreen, ResultsScreen },
+  components: { HistoryScreen, SetupScreen, PredictionScreen, TricksScreen, GridScreen, ResultsScreen, InfoOverlay },
   setup() {
     const inGame = computed(() => activeGame.value !== null && !['history', 'setup'].includes(state.currentScreen));
+    const showInfo = ref(false);
     const roundLabel = computed(() => {
       const g = activeGame.value;
       if (!g) return '';
@@ -696,7 +857,7 @@ const App = {
       if (screen === 'grid') setViewMode('grid');
       if (screen === 'prediction' || screen === 'tricks') setViewMode('focused');
     }
-    return { state, activeGame, inGame, roundLabel, navigate, setViewMode };
+    return { state, activeGame, inGame, roundLabel, navigate, setViewMode, showInfo };
   },
   template: `
     <div class="app-header">
@@ -704,10 +865,13 @@ const App = {
         <h1>🧙 Wizard</h1>
         <div v-if="inGame" class="subtitle">{{ roundLabel }}</div>
       </div>
-      <div v-if="inGame" class="view-toggle">
-        <button :class="{active: state.viewMode === 'focused'}"
-          @click="navigate(activeGame?.rounds.find(r=>r.roundNumber===activeGame.currentRoundNumber)?.phase === 'trickRecording' ? 'tricks' : 'prediction')">📋</button>
-        <button :class="{active: state.viewMode === 'grid'}" @click="navigate('grid')">📊</button>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <button v-if="inGame" class="info-btn" @click="showInfo = true">ℹ️</button>
+        <div v-if="inGame" class="view-toggle">
+          <button :class="{active: state.viewMode === 'focused'}"
+            @click="navigate(activeGame?.rounds.find(r=>r.roundNumber===activeGame.currentRoundNumber)?.phase === 'trickRecording' ? 'tricks' : 'prediction')">📋</button>
+          <button :class="{active: state.viewMode === 'grid'}" @click="navigate('grid')">📊</button>
+        </div>
       </div>
     </div>
 
@@ -717,6 +881,8 @@ const App = {
     <TricksScreen v-else-if="state.currentScreen === 'tricks'" @navigate="navigate" />
     <GridScreen v-else-if="state.currentScreen === 'grid'" />
     <ResultsScreen v-else-if="state.currentScreen === 'results'" @navigate="navigate" />
+
+    <InfoOverlay :show="showInfo" @close="showInfo = false" />
   `,
 };
 
