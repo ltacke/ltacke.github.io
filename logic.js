@@ -126,7 +126,7 @@ export function saveProfiles(profiles) {
 export function profileStats(profileName, games) {
   const lower = profileName.toLowerCase();
   const relevant = games.filter(g =>
-    g.players.some(p => p.name.toLowerCase() === lower)
+    g.isCompleted && g.players.some(p => p.name.toLowerCase() === lower)
   );
 
   if (relevant.length === 0) return { gamesPlayed: 0, wins: 0, avgPoints: 0, accuracy: 0 };
