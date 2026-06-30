@@ -320,7 +320,11 @@ const ProfileDetailOverlay = {
 // ─── HistoryScreen ────────────────────────────────────────────────────────────
 
 const HistoryScreen = {
+  components: { ProfileFormOverlay, ProfileDetailOverlay },
   setup() {
+    const tab = ref('games'); // 'games' | 'players'
+
+    // Games tab
     const games = computed(() => [...state.games].sort(
       (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
     ));
@@ -349,42 +353,98 @@ const HistoryScreen = {
       }).sort((a, b) => b.total - a.total);
       return best.map(p => `${p.name}: ${p.total}`).join(' · ');
     }
-    return { games, openGame, deleteGame, formatDate, scoreLabel };
+
+    // Players tab
+    const showForm = ref(false);
+    const editingProfile = ref(null);
+    const detailProfile = ref(null);
+    const showDetail = ref(false);
+
+    function openNewProfile() { editingProfile.value = null; showForm.value = true; }
+    function openEditProfile(p) { editingProfile.value = p; showForm.value = true; showDetail.value = false; }
+    function openDetail(p) { detailProfile.value = p; showDetail.value = true; }
+    function deleteProfile(id) {
+      if (!confirm('Profil löschen?')) return;
+      state.profiles = state.profiles.filter(p => p.id !== id);
+      persistProfiles();
+    }
+    function shortStats(profile) {
+      const s = profileStats(profile.name, state.games);
+      return `${s.gamesPlayed} Spiele · ${s.wins} Siege`;
+    }
+
+    return {
+      tab, games, openGame, deleteGame, formatDate, scoreLabel,
+      showForm, editingProfile, detailProfile, showDetail,
+      openNewProfile, openEditProfile, openDetail, deleteProfile, shortStats,
+    };
   },
   template: `
     <div class="screen">
-      <div v-if="games.length === 0" style="text-align:center;padding:40px 0;color:#57606a">
-        <div style="font-size:48px;margin-bottom:16px">🧙</div>
-        <p style="font-weight:600;margin-bottom:6px">Noch keine Spiele</p>
-        <p style="font-size:13px">Starte ein neues Spiel unten.</p>
+      <div class="history-tabs">
+        <button :class="{active: tab === 'games'}" @click="tab = 'games'">🕹️ Spiele</button>
+        <button :class="{active: tab === 'players'}" @click="tab = 'players'">👤 Spieler</button>
       </div>
-      <div v-else>
-        <p class="section-title">Gespeicherte Spiele</p>
-        <div
-          v-for="game in games" :key="game.id"
-          class="history-item"
-          @click="openGame(game)"
-        >
-          <div>
-            <div style="font-weight:600;font-size:14px">
-              {{ game.players.map(p => p.name).join(', ') }}
-              <span v-if="game.isCompleted" style="font-size:11px;color:#16a34a;margin-left:6px">✓ Fertig</span>
-              <span v-else style="font-size:11px;color:#3b82d4;margin-left:6px">Runde {{ game.currentRoundNumber }}/{{ game.selectedRounds }}</span>
+
+      <!-- Games tab -->
+      <template v-if="tab === 'games'">
+        <div v-if="games.length === 0" style="text-align:center;padding:40px 0;color:#57606a">
+          <div style="font-size:48px;margin-bottom:16px">🧙</div>
+          <p style="font-weight:600;margin-bottom:6px">Noch keine Spiele</p>
+          <p style="font-size:13px">Starte ein neues Spiel unten.</p>
+        </div>
+        <div v-else>
+          <p class="section-title">Gespeicherte Spiele</p>
+          <div
+            v-for="game in games" :key="game.id"
+            class="history-item"
+            @click="openGame(game)"
+          >
+            <div>
+              <div style="font-weight:600;font-size:14px">
+                {{ game.players.map(p => p.name).join(', ') }}
+                <span v-if="game.isCompleted" style="font-size:11px;color:#16a34a;margin-left:6px">✓ Fertig</span>
+                <span v-else style="font-size:11px;color:#3b82d4;margin-left:6px">Runde {{ game.currentRoundNumber }}/{{ game.selectedRounds }}</span>
+              </div>
+              <div class="history-meta">{{ formatDate(game.createdAt) }} · {{ scoreLabel(game) }}</div>
             </div>
-            <div class="history-meta">{{ formatDate(game.createdAt) }} · {{ game.mode === 'hardcore' ? 'Hardcore' : 'Normal' }}</div>
-            <div class="history-meta">{{ scoreLabel(game) }}</div>
-          </div>
-          <div style="display:flex;align-items:center;gap:8px">
-            <span style="color:#57606a;font-size:18px">›</span>
-            <button class="btn btn-danger" style="padding:4px 10px;font-size:12px;width:auto"
-              @click.stop="deleteGame(game.id)">✕</button>
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="color:#57606a;font-size:18px">›</span>
+              <button class="profile-trash" @click.stop="deleteGame(game.id)">🗑</button>
+            </div>
           </div>
         </div>
-      </div>
+      </template>
+
+      <!-- Players tab -->
+      <template v-if="tab === 'players'">
+        <div v-if="state.profiles.length === 0" style="text-align:center;padding:40px 0;color:#57606a">
+          <div style="font-size:48px;margin-bottom:16px">👤</div>
+          <p style="font-weight:600;margin-bottom:6px">Noch keine Profile</p>
+          <p style="font-size:13px">Lege ein Profil an um Statistiken zu sehen.</p>
+        </div>
+        <div v-else>
+          <p class="section-title">Spielerprofile</p>
+          <div v-for="profile in state.profiles" :key="profile.id" class="profile-row" @click="openDetail(profile)" style="cursor:pointer">
+            <img v-if="profile.photo" :src="profile.photo" class="avatar" style="width:40px;height:40px" />
+            <div v-else class="avatar-placeholder" style="width:40px;height:40px;font-size:16px">👤</div>
+            <div class="profile-row-info">
+              <div class="profile-row-name">{{ profile.name }}</div>
+              <div class="profile-row-meta">{{ shortStats(profile) }}</div>
+            </div>
+            <button class="profile-trash" @click.stop="deleteProfile(profile.id)">🗑</button>
+          </div>
+        </div>
+        <button class="btn btn-secondary" style="margin-top:16px" @click="openNewProfile">+ Neues Profil</button>
+      </template>
     </div>
-    <div class="sticky-footer">
+
+    <div v-if="tab === 'games'" class="sticky-footer">
       <button class="btn btn-primary" @click="$emit('navigate', 'setup')">+ Neues Spiel</button>
     </div>
+
+    <ProfileFormOverlay :show="showForm" :editProfile="editingProfile" @close="showForm = false" @saved="showForm = false" />
+    <ProfileDetailOverlay :show="showDetail" :profile="detailProfile" @close="showDetail = false" @edit="openEditProfile(detailProfile)" />
   `,
   emits: ['navigate'],
 };
