@@ -556,10 +556,9 @@ const SetupScreen = {
           />
           <button
             v-if="playerNames[i].trim() && !profileFor(i)"
-            class="btn btn-secondary"
-            style="padding:6px 10px;font-size:12px;white-space:nowrap;flex-shrink:0"
+            style="background:none;border:none;color:#57606a;font-size:20px;cursor:pointer;padding:4px;flex-shrink:0;line-height:1"
             @click="openNewProfile(i)"
-          >＋ Profil</button>
+          >＋</button>
         </div>
         <div v-if="focusedIndex === i && suggestions(i).length" class="suggest-dropdown">
           <button
