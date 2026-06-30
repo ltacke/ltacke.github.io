@@ -196,6 +196,76 @@ function setViewMode(mode) {
   localStorage.setItem('wizard-view-mode', mode);
 }
 
+// ─── ProfileFormOverlay ───────────────────────────────────────────────────────
+
+const ProfileFormOverlay = {
+  props: ['show', 'editProfile'],
+  emits: ['close', 'saved'],
+  setup(props, { emit }) {
+    const name = ref('');
+    const photo = ref(null);
+    const fileInput = ref(null);
+
+    watch(() => props.show, (v) => {
+      if (v) {
+        name.value = props.editProfile?.name ?? '';
+        photo.value = props.editProfile?.photo ?? null;
+      }
+    });
+
+    async function onFileChange(e) {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const result = await resizePhoto(file);
+      if (result) photo.value = result;
+      e.target.value = '';
+    }
+
+    function save() {
+      if (!name.value.trim()) return;
+      const profile = {
+        id: props.editProfile?.id ?? crypto.randomUUID(),
+        name: name.value.trim(),
+        photo: photo.value,
+        createdAt: props.editProfile?.createdAt ?? new Date().toISOString(),
+      };
+      const idx = state.profiles.findIndex(p => p.id === profile.id);
+      if (idx !== -1) state.profiles[idx] = profile;
+      else state.profiles.push(profile);
+      persistProfiles();
+      emit('saved', profile);
+      emit('close');
+    }
+
+    return { name, photo, fileInput, onFileChange, save };
+  },
+  template: `
+    <div v-if="show" class="overlay-scrim" @click.self="$emit('close')">
+      <div class="overlay-panel">
+        <div class="overlay-header">
+          <h2>{{ editProfile ? 'Profil bearbeiten' : 'Neues Profil' }}</h2>
+          <button class="overlay-close" @click="$emit('close')">✕</button>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:16px;padding:8px 0 16px">
+          <img v-if="photo" :src="photo" class="avatar" style="width:80px;height:80px" />
+          <div v-else class="avatar-placeholder" style="width:80px;height:80px">👤</div>
+          <button class="btn btn-secondary" style="width:auto;padding:8px 20px"
+            @click="fileInput.click()">📷 Foto wählen</button>
+          <input ref="fileInput" type="file" accept="image/*" style="display:none" @change="onFileChange" />
+        </div>
+        <div style="margin-bottom:16px">
+          <input class="input-field" placeholder="Name" v-model="name" maxlength="20" />
+        </div>
+        <div style="display:flex;gap:10px">
+          <button class="btn btn-secondary" style="flex:1" @click="$emit('close')">Abbrechen</button>
+          <button class="btn btn-primary" style="flex:1" :disabled="!name.trim()" @click="save">Speichern</button>
+        </div>
+      </div>
+    </div>
+  `,
+};
+
+
 // ─── HistoryScreen ────────────────────────────────────────────────────────────
 
 const HistoryScreen = {
