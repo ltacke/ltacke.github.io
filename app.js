@@ -572,10 +572,118 @@ const TricksScreen = {
   `,
 };
 
+// ─── GridScreen ───────────────────────────────────────────────────────────────
+
+const GridScreen = {
+  setup() {
+    const game = computed(() => activeGame.value);
+    const round = computed(() => activeRound.value);
+
+    function scoreFor(playerId, roundNumber) {
+      const r = game.value?.rounds.find(r => r.roundNumber === roundNumber);
+      return r?.scores.find(s => s.playerId === playerId) ?? null;
+    }
+
+    function scoreClass(points) {
+      if (points === undefined || points === null) return '';
+      if (points > 0) return 'score-pos';
+      if (points < 0) return 'score-neg';
+      return 'score-zero';
+    }
+
+    function currentTotal(playerId) {
+      const scores = game.value?.rounds.flatMap(r => r.scores).filter(s => s.playerId === playerId) ?? [];
+      return scores.at(-1)?.runningTotalAfterRound ?? 0;
+    }
+
+    return { game, round, scoreFor, scoreClass, currentTotal };
+  },
+  template: `
+    <div v-if="game" class="screen" style="padding:0;overflow-x:auto">
+      <table class="score-grid">
+        <thead>
+          <tr>
+            <th>Rd</th>
+            <th v-for="p in game.players" :key="p.id">
+              {{ p.name }}<br>
+              <span style="font-weight:400;font-size:11px" :class="scoreClass(currentTotal(p.id))">{{ currentTotal(p.id) }}</span>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="rn in game.selectedRounds" :key="rn"
+            :class="rn === game.currentRoundNumber ? 'current-round' : ''">
+            <td>
+              {{ rn }}
+              <span v-if="game.rounds.find(r => r.roundNumber === rn)?.specialCardEvents.some(e => e.cardType === 'bombe')"> 💣</span>
+            </td>
+            <td v-for="p in game.players" :key="p.id">
+              <template v-if="scoreFor(p.id, rn)">
+                <span :class="scoreClass(scoreFor(p.id, rn).pointsAwarded)">
+                  {{ scoreFor(p.id, rn).pointsAwarded > 0 ? '+' : '' }}{{ scoreFor(p.id, rn).pointsAwarded }}
+                </span>
+                <br>
+                <span style="font-size:11px;color:#57606a">{{ scoreFor(p.id, rn).runningTotalAfterRound }}</span>
+              </template>
+              <template v-else-if="rn === game.currentRoundNumber">
+                <span style="color:#3b82d4">…</span>
+              </template>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  `,
+};
+
+// ─── ResultsScreen ────────────────────────────────────────────────────────────
+
+const ResultsScreen = {
+  setup() {
+    const game = computed(() => activeGame.value);
+    const standings = computed(() => {
+      if (!game.value) return [];
+      return game.value.players.map(p => {
+        const scores = game.value.rounds.flatMap(r => r.scores).filter(s => s.playerId === p.id);
+        return { name: p.name, total: scores.at(-1)?.runningTotalAfterRound ?? 0 };
+      }).sort((a, b) => b.total - a.total);
+    });
+    const winner = computed(() => standings.value[0]);
+    return { game, standings, winner };
+  },
+  template: `
+    <div v-if="game" class="screen">
+      <div style="text-align:center;padding:20px 0 24px">
+        <div style="font-size:48px;margin-bottom:8px">🏆</div>
+        <h2 style="font-size:20px;font-weight:700">{{ winner?.name }} gewinnt!</h2>
+        <p class="info">{{ winner?.total }} Punkte</p>
+      </div>
+
+      <div class="podium">
+        <div v-for="(p, i) in standings" :key="p.name"
+          class="podium-item" :class="i === 0 ? 'first' : ''">
+          <div class="rank-badge" :class="i === 0 ? 'gold' : ''">{{ i + 1 }}</div>
+          <div style="flex:1">
+            <div style="font-weight:600">{{ p.name }}</div>
+          </div>
+          <div :class="p.total >= 0 ? 'score-pos' : 'score-neg'" style="font-size:18px;font-weight:700">
+            {{ p.total }}
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="sticky-footer" style="display:flex;gap:10px">
+      <button class="btn btn-secondary" style="flex:1" @click="$emit('navigate', 'grid')">📊 Vollständiges Grid</button>
+      <button class="btn btn-primary" style="flex:1" @click="$emit('navigate', 'history')">Neue Runde</button>
+    </div>
+  `,
+  emits: ['navigate'],
+};
+
 // ─── App Root ────────────────────────────────────────────────────────────────
 
 const App = {
-  components: { HistoryScreen, SetupScreen, PredictionScreen, TricksScreen },
+  components: { HistoryScreen, SetupScreen, PredictionScreen, TricksScreen, GridScreen, ResultsScreen },
   setup() {
     const inGame = computed(() => activeGame.value !== null && !['history', 'setup'].includes(state.currentScreen));
     const roundLabel = computed(() => {
@@ -583,8 +691,12 @@ const App = {
       if (!g) return '';
       return `Runde ${g.currentRoundNumber}/${g.selectedRounds}`;
     });
-    function navigate(screen) { setScreen(screen); }
-    return { state, inGame, roundLabel, navigate, setViewMode };
+    function navigate(screen) {
+      setScreen(screen);
+      if (screen === 'grid') setViewMode('grid');
+      if (screen === 'prediction' || screen === 'tricks') setViewMode('focused');
+    }
+    return { state, activeGame, inGame, roundLabel, navigate, setViewMode };
   },
   template: `
     <div class="app-header">
@@ -593,8 +705,9 @@ const App = {
         <div v-if="inGame" class="subtitle">{{ roundLabel }}</div>
       </div>
       <div v-if="inGame" class="view-toggle">
-        <button :class="{active: state.viewMode === 'focused'}" @click="setViewMode('focused')">📋</button>
-        <button :class="{active: state.viewMode === 'grid'}" @click="setViewMode('grid')">📊</button>
+        <button :class="{active: state.viewMode === 'focused'}"
+          @click="navigate(activeGame?.rounds.find(r=>r.roundNumber===activeGame.currentRoundNumber)?.phase === 'trickRecording' ? 'tricks' : 'prediction')">📋</button>
+        <button :class="{active: state.viewMode === 'grid'}" @click="navigate('grid')">📊</button>
       </div>
     </div>
 
@@ -602,9 +715,8 @@ const App = {
     <SetupScreen v-else-if="state.currentScreen === 'setup'" @navigate="navigate" />
     <PredictionScreen v-else-if="state.currentScreen === 'prediction'" @navigate="navigate" />
     <TricksScreen v-else-if="state.currentScreen === 'tricks'" @navigate="navigate" />
-    <div v-else class="screen" style="display:flex;align-items:center;justify-content:center;color:#57606a">
-      Weitere Screens folgen…
-    </div>
+    <GridScreen v-else-if="state.currentScreen === 'grid'" />
+    <ResultsScreen v-else-if="state.currentScreen === 'results'" @navigate="navigate" />
   `,
 };
 
