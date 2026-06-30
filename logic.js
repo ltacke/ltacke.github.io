@@ -111,3 +111,67 @@ export function loadGames() {
     return [];
   }
 }
+
+export function loadProfiles() {
+  try { return JSON.parse(localStorage.getItem('wizard-profiles') ?? '[]'); }
+  catch { return []; }
+}
+
+export function saveProfiles(profiles) {
+  localStorage.setItem('wizard-profiles', JSON.stringify(profiles));
+}
+
+export function profileStats(profileName, games) {
+  const lower = profileName.toLowerCase();
+  const relevant = games.filter(g =>
+    g.players.some(p => p.name.toLowerCase() === lower)
+  );
+
+  if (relevant.length === 0) return { gamesPlayed: 0, wins: 0, avgPoints: 0, accuracy: 0 };
+
+  let wins = 0;
+  let totalPoints = 0;
+  let correctPredictions = 0;
+  let totalRounds = 0;
+
+  for (const game of relevant) {
+    const player = game.players.find(p => p.name.toLowerCase() === lower);
+    if (!player) continue;
+
+    // Final score = last complete round's runningTotalAfterRound
+    const playerScores = game.rounds
+      .filter(r => r.phase === 'complete')
+      .flatMap(r => r.scores)
+      .filter(s => s.playerId === player.id);
+
+    const finalScore = playerScores.at(-1)?.runningTotalAfterRound ?? 0;
+    totalPoints += finalScore;
+
+    // Win check: is this player's final score the max among all players?
+    const allFinalScores = game.players.map(p => {
+      const scores = game.rounds
+        .filter(r => r.phase === 'complete')
+        .flatMap(r => r.scores)
+        .filter(s => s.playerId === p.id);
+      return scores.at(-1)?.runningTotalAfterRound ?? 0;
+    });
+    if (finalScore === Math.max(...allFinalScores)) wins++;
+
+    // Accuracy: count rounds where prediction === actual
+    for (const round of game.rounds.filter(r => r.phase === 'complete')) {
+      const prediction = round.predictions.find(p => p.playerId === player.id);
+      const trickResult = round.trickResults.find(t => t.playerId === player.id);
+      if (prediction && trickResult) {
+        totalRounds++;
+        if ((prediction.adjustedValue ?? 0) === trickResult.tricksWon) correctPredictions++;
+      }
+    }
+  }
+
+  return {
+    gamesPlayed: relevant.length,
+    wins,
+    avgPoints: Math.round((totalPoints / relevant.length) * 10) / 10,
+    accuracy: totalRounds > 0 ? Math.round((correctPredictions / totalRounds) * 1000) / 10 : 0,
+  };
+}
