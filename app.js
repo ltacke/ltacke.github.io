@@ -456,7 +456,8 @@ const SetupScreen = {
     const playerCount = ref(4);
     const playerNames = ref(['', '', '', '']);
     const mode = ref('normal');
-    const selectedRounds = ref(null); // null = max
+    const selectedRounds = ref(null);
+    const focusedIndex = ref(null);
 
     const maxRounds = computed(() => roundCount(playerCount.value));
     const effectiveRounds = computed(() => selectedRounds.value ?? maxRounds.value);
@@ -483,7 +484,30 @@ const SetupScreen = {
       setScreen('prediction');
     }
 
-    return { playerCount, playerNames, mode, selectedRounds, maxRounds, effectiveRounds, setPlayerCount, canStart, startGame };
+    function suggestions(i) {
+      const q = playerNames.value[i]?.toLowerCase() ?? '';
+      if (!q) return [];
+      return state.profiles
+        .filter(p => p.name.toLowerCase().includes(q))
+        .slice(0, 5);
+    }
+
+    function pickSuggestion(i, profile) {
+      playerNames.value[i] = profile.name;
+      focusedIndex.value = null;
+    }
+
+    function profileFor(i) {
+      const name = playerNames.value[i]?.trim().toLowerCase();
+      if (!name) return null;
+      return state.profiles.find(p => p.name.toLowerCase() === name) ?? null;
+    }
+
+    return {
+      playerCount, playerNames, mode, selectedRounds, maxRounds, effectiveRounds,
+      setPlayerCount, canStart, startGame,
+      focusedIndex, suggestions, pickSuggestion, profileFor,
+    };
   },
   template: `
     <div class="screen">
@@ -494,13 +518,31 @@ const SetupScreen = {
           style="flex:1;padding:8px"
           @click="setPlayerCount(n)">{{ n }}</button>
       </div>
-      <div v-for="(_, i) in playerNames.slice(0, playerCount)" :key="i" style="margin-bottom:8px">
-        <input
-          class="input-field"
-          :placeholder="'Spieler ' + (i+1)"
-          v-model="playerNames[i]"
-          maxlength="20"
-        />
+      <div v-for="(_, i) in playerNames.slice(0, playerCount)" :key="i" style="margin-bottom:8px;position:relative">
+        <div style="display:flex;align-items:center;gap:8px">
+          <img v-if="profileFor(i)?.photo" :src="profileFor(i).photo" class="avatar" style="width:32px;height:32px" />
+          <div v-else-if="profileFor(i)" class="avatar-placeholder" style="width:32px;height:32px;font-size:14px">👤</div>
+          <input
+            class="input-field"
+            :style="profileFor(i) ? 'flex:1' : 'width:100%'"
+            :placeholder="'Spieler ' + (i+1)"
+            v-model="playerNames[i]"
+            maxlength="20"
+            @focus="focusedIndex = i"
+            @blur="setTimeout(() => { if (focusedIndex === i) focusedIndex = null }, 150)"
+          />
+        </div>
+        <div v-if="focusedIndex === i && suggestions(i).length" class="suggest-dropdown">
+          <button
+            v-for="p in suggestions(i)" :key="p.id"
+            class="suggest-item"
+            @mousedown.prevent="pickSuggestion(i, p)"
+          >
+            <img v-if="p.photo" :src="p.photo" class="avatar" style="width:24px;height:24px" />
+            <div v-else class="avatar-placeholder" style="width:24px;height:24px;font-size:12px">👤</div>
+            {{ p.name }}
+          </button>
+        </div>
       </div>
 
       <p class="section-title" style="margin-top:20px">Modus</p>
