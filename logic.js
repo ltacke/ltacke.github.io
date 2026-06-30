@@ -118,7 +118,9 @@ export function loadProfiles() {
 }
 
 export function saveProfiles(profiles) {
-  localStorage.setItem('wizard-profiles', JSON.stringify(profiles));
+  try {
+    localStorage.setItem('wizard-profiles', JSON.stringify(profiles));
+  } catch (_) {}
 }
 
 export function profileStats(profileName, games) {

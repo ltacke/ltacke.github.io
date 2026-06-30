@@ -172,8 +172,10 @@ function resizePhoto(file) {
         ctx.drawImage(img, sx, sy, min, min, 0, 0, size, size);
         resolve(canvas.toDataURL('image/jpeg', 0.7));
       };
+      img.onerror = () => resolve(null);
       img.src = e.target.result;
     };
+    reader.onerror = () => resolve(null);
     reader.readAsDataURL(file);
   });
 }
