@@ -1098,7 +1098,7 @@ const InfoOverlay = {
 };
 
 const App = {
-  components: { HistoryScreen, SetupScreen, PredictionScreen, TricksScreen, GridScreen, ResultsScreen, InfoOverlay },
+  components: { HistoryScreen, SetupScreen, PredictionScreen, TricksScreen, GridScreen, ResultsScreen, InfoOverlay, ProfileFormOverlay, ProfileDetailOverlay },
   setup() {
     const inGame = computed(() => activeGame.value !== null && !['history', 'setup'].includes(state.currentScreen));
     const showInfo = ref(false);
