@@ -116,17 +116,19 @@ const sonderkartenData = [
 
 
 // app.js
-import { createApp, reactive, computed, ref } from 'vue';
+import { createApp, reactive, computed, ref, watch } from 'vue';
 import {
   createGame, saveGames, loadGames, roundCount,
   predictionOrder, forbiddenDealerPrediction, calculateRoundScores,
   effectiveBombCount, applyCloudAdjustment,
+  loadProfiles, saveProfiles, profileStats,
 } from './logic.js';
 
 // ─── Global State ────────────────────────────────────────────────────────────
 
 const state = reactive({
   games: loadGames(),
+  profiles: loadProfiles(),
   activeGameId: null,
   currentScreen: 'history',   // 'history' | 'setup' | 'prediction' | 'tricks' | 'grid' | 'results'
   viewMode: localStorage.getItem('wizard-view-mode') ?? 'focused', // 'focused' | 'grid'
@@ -146,6 +148,34 @@ const activeRound = computed(() => {
 
 function persist() {
   saveGames(state.games);
+}
+
+function persistProfiles() {
+  saveProfiles(state.profiles);
+}
+
+function resizePhoto(file) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const size = 200;
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        // Crop to square from center
+        const min = Math.min(img.width, img.height);
+        const sx = (img.width - min) / 2;
+        const sy = (img.height - min) / 2;
+        ctx.drawImage(img, sx, sy, min, min, 0, 0, size, size);
+        resolve(canvas.toDataURL('image/jpeg', 0.7));
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
 }
 
 function updateGame(updatedGame) {
