@@ -444,7 +444,7 @@ const HistoryScreen = {
     </div>
 
     <ProfileFormOverlay :show="showForm" :editProfile="editingProfile" @close="showForm = false" @saved="showForm = false" />
-    <ProfileDetailOverlay :show="showDetail" :profile="detailProfile" @close="showDetail = false" @edit="openEditProfile(detailProfile)" />
+    <ProfileDetailOverlay :show="showDetail" :profile="detailProfile" @close="showDetail = false" @edit="openEditProfile" />
   `,
   emits: ['navigate'],
 };
