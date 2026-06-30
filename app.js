@@ -266,6 +266,57 @@ const ProfileFormOverlay = {
 };
 
 
+// ─── ProfileDetailOverlay ─────────────────────────────────────────────────────
+
+const ProfileDetailOverlay = {
+  props: ['show', 'profile'],
+  emits: ['close', 'edit'],
+  setup(props) {
+    const stats = computed(() => {
+      if (!props.profile) return null;
+      return profileStats(props.profile.name, state.games);
+    });
+    return { stats };
+  },
+  template: `
+    <div v-if="show && profile" class="overlay-scrim" @click.self="$emit('close')">
+      <div class="overlay-panel">
+        <div class="overlay-header">
+          <h2>{{ profile.name }}</h2>
+          <button class="overlay-close" @click="$emit('close')">✕</button>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:12px;padding:8px 0 20px">
+          <img v-if="profile.photo" :src="profile.photo" class="avatar" style="width:80px;height:80px" />
+          <div v-else class="avatar-placeholder" style="width:80px;height:80px">👤</div>
+          <button class="btn btn-secondary" style="width:auto;padding:8px 20px" @click="$emit('edit')">Bearbeiten</button>
+        </div>
+        <div v-if="stats" class="stats-grid">
+          <div class="stat-box">
+            <div class="stat-value">{{ stats.gamesPlayed }}</div>
+            <div class="stat-label">Spiele</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-value">{{ stats.wins }}</div>
+            <div class="stat-label">Siege</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-value">{{ stats.avgPoints }}</div>
+            <div class="stat-label">Ø Punkte</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-value">{{ stats.accuracy }}%</div>
+            <div class="stat-label">Trefferquote</div>
+          </div>
+        </div>
+        <div v-if="stats && stats.gamesPlayed === 0" style="text-align:center;color:#57606a;font-size:13px;margin-top:16px">
+          Noch keine Spiele mit diesem Profil.
+        </div>
+      </div>
+    </div>
+  `,
+};
+
+
 // ─── HistoryScreen ────────────────────────────────────────────────────────────
 
 const HistoryScreen = {
