@@ -288,7 +288,7 @@ const ProfileDetailOverlay = {
         <div style="display:flex;flex-direction:column;align-items:center;gap:12px;padding:8px 0 20px">
           <img v-if="profile.photo" :src="profile.photo" class="avatar" style="width:80px;height:80px" />
           <div v-else class="avatar-placeholder" style="width:80px;height:80px">👤</div>
-          <button class="btn btn-secondary" style="width:auto;padding:8px 20px" @click="$emit('edit')">Bearbeiten</button>
+          <button class="btn btn-secondary" style="width:auto;padding:8px 20px" @click="$emit('edit', profile)">Bearbeiten</button>
         </div>
         <div v-if="stats" class="stats-grid">
           <div class="stat-box">
