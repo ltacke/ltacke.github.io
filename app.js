@@ -3,7 +3,7 @@ import { createApp, reactive, computed, ref } from 'vue';
 import {
   createGame, saveGames, loadGames, roundCount,
   predictionOrder, forbiddenDealerPrediction, calculateRoundScores,
-  effectiveBombCount,
+  effectiveBombCount, applyCloudAdjustment,
 } from './logic.js';
 
 // ─── Global State ────────────────────────────────────────────────────────────
@@ -341,10 +341,241 @@ const PredictionScreen = {
   emits: ['navigate'],
 };
 
+// ─── TricksScreen ─────────────────────────────────────────────────────────────
+
+const TricksScreen = {
+  setup() {
+    const game = computed(() => activeGame.value);
+    const round = computed(() => activeRound.value);
+
+    const trickDraft = reactive({});
+    function initDraft() {
+      if (!game.value || !round.value) return;
+      game.value.players.forEach(p => {
+        const existing = round.value.trickResults.find(t => t.playerId === p.id);
+        trickDraft[p.id] = existing?.tricksWon ?? 0;
+      });
+    }
+    initDraft();
+
+    const specialOpen = ref(false);
+
+    const bombCount = computed(() => round.value ? effectiveBombCount(round.value.specialCardEvents) : 0);
+    const cloudCount = computed(() => round.value ? round.value.specialCardEvents.filter(e => e.cardType === 'wolke').length : 0);
+    const available = computed(() => round.value ? round.value.availableTricksAfterBombs : 0);
+    const trickSum = computed(() => Object.values(trickDraft).reduce((a, b) => a + b, 0));
+    const isValid = computed(() => trickSum.value === available.value);
+
+    function setTricks(playerId, value) {
+      trickDraft[playerId] = Math.max(0, Math.min(round.value?.cardsPerPlayer ?? 0, value));
+    }
+
+    function predictionFor(playerId) {
+      return round.value?.predictions.find(p => p.playerId === playerId);
+    }
+
+    function cumulativeFor(playerId) {
+      if (!game.value) return 0;
+      const prevRounds = game.value.rounds.filter(r => r.roundNumber < (round.value?.roundNumber ?? 1) && r.phase === 'complete');
+      return prevRounds.flatMap(r => r.scores).filter(s => s.playerId === playerId).at(-1)?.runningTotalAfterRound ?? 0;
+    }
+
+    function addBomb() {
+      if (!game.value || !round.value) return;
+      const newEvent = { id: crypto.randomUUID(), cardType: 'bombe', playerId: null, adjustmentDirection: null };
+      const updatedEvents = [...round.value.specialCardEvents, newEvent];
+      const bombs = effectiveBombCount(updatedEvents);
+      if (round.value.cardsPerPlayer - bombs < 0) return;
+      const updatedRound = {
+        ...round.value,
+        specialCardEvents: updatedEvents,
+        availableTricksAfterBombs: round.value.cardsPerPlayer - bombs,
+      };
+      updateGame({ ...game.value, rounds: game.value.rounds.map(r => r.roundNumber === updatedRound.roundNumber ? updatedRound : r) });
+    }
+
+    function removeBomb() {
+      if (!game.value || !round.value) return;
+      const events = [...round.value.specialCardEvents];
+      const lastBombIdx = events.map(e => e.cardType).lastIndexOf('bombe');
+      if (lastBombIdx === -1) return;
+      events.splice(lastBombIdx, 1);
+      const updatedRound = {
+        ...round.value,
+        specialCardEvents: events,
+        availableTricksAfterBombs: round.value.cardsPerPlayer - effectiveBombCount(events),
+      };
+      updateGame({ ...game.value, rounds: game.value.rounds.map(r => r.roundNumber === updatedRound.roundNumber ? updatedRound : r) });
+    }
+
+    const cloudPickerId = ref(null); // playerId der ausgewählt wird
+
+    function openCloudPicker() { cloudPickerId.value = 'picking'; }
+
+    function applyCloud(playerId, direction) {
+      if (!game.value || !round.value) return;
+      const prediction = round.value.predictions.find(p => p.playerId === playerId);
+      if (!prediction) return;
+      const newValue = applyCloudAdjustment(prediction.originalValue, direction, round.value.cardsPerPlayer);
+      if (newValue === null) { cloudPickerId.value = null; return; }
+      const newEvent = { id: crypto.randomUUID(), cardType: 'wolke', playerId, adjustmentDirection: direction };
+      const updatedPredictions = round.value.predictions.map(p =>
+        p.playerId === playerId
+          ? { ...p, adjustedValue: newValue, cloudAdjustment: { direction } }
+          : p
+      );
+      const updatedRound = {
+        ...round.value,
+        predictions: updatedPredictions,
+        specialCardEvents: [...round.value.specialCardEvents, newEvent],
+      };
+      updateGame({ ...game.value, rounds: game.value.rounds.map(r => r.roundNumber === updatedRound.roundNumber ? updatedRound : r) });
+      cloudPickerId.value = null;
+    }
+
+    function removeCloud() {
+      if (!game.value || !round.value) return;
+      const events = [...round.value.specialCardEvents];
+      const lastCloudIdx = events.map(e => e.cardType).lastIndexOf('wolke');
+      if (lastCloudIdx === -1) return;
+      const removed = events.splice(lastCloudIdx, 1)[0];
+      const updatedPredictions = round.value.predictions.map(p =>
+        p.playerId === removed.playerId
+          ? { ...p, adjustedValue: p.originalValue, cloudAdjustment: null }
+          : p
+      );
+      const updatedRound = { ...round.value, predictions: updatedPredictions, specialCardEvents: events };
+      updateGame({ ...game.value, rounds: game.value.rounds.map(r => r.roundNumber === updatedRound.roundNumber ? updatedRound : r) });
+    }
+
+    function submitTricks() {
+      if (!isValid.value || !game.value || !round.value) return;
+      const trickResults = game.value.players.map(p => ({ playerId: p.id, tricksWon: trickDraft[p.id] }));
+      const tempRound = { ...round.value, trickResults };
+      const prevRounds = game.value.rounds.filter(r => r.roundNumber < round.value.roundNumber);
+      const scores = calculateRoundScores(tempRound, game.value.players, prevRounds);
+      const completedRound = { ...tempRound, trickResults, scores, phase: 'complete' };
+
+      const isLast = round.value.roundNumber >= game.value.selectedRounds;
+      const newCurrentRound = isLast ? game.value.currentRoundNumber : round.value.roundNumber + 1;
+
+      const updatedGame = {
+        ...game.value,
+        rounds: game.value.rounds.map(r => r.roundNumber === completedRound.roundNumber ? completedRound : r),
+        currentRoundNumber: newCurrentRound,
+        isCompleted: isLast,
+      };
+      updateGame(updatedGame);
+      setScreen(isLast ? 'results' : 'prediction');
+    }
+
+    function goBackToPrediction() {
+      if (!game.value || !round.value) return;
+      const updatedRound = { ...round.value, phase: 'prediction', trickResults: [], specialCardEvents: [], scores: [], availableTricksAfterBombs: round.value.cardsPerPlayer };
+      updateGame({ ...game.value, rounds: game.value.rounds.map(r => r.roundNumber === updatedRound.roundNumber ? updatedRound : r) });
+      setScreen('prediction');
+    }
+
+    return {
+      game, round, trickDraft, specialOpen, bombCount, cloudCount, available,
+      trickSum, isValid, setTricks, predictionFor, cumulativeFor,
+      addBomb, removeBomb, cloudPickerId, openCloudPicker, applyCloud, removeCloud,
+      submitTricks, goBackToPrediction,
+    };
+  },
+  template: `
+    <div v-if="round" class="screen">
+      <!-- Summary -->
+      <div class="card" style="margin-bottom:16px">
+        <div style="display:flex;justify-content:space-between">
+          <span class="info">{{ round.cardsPerPlayer }} Karten</span>
+          <span class="info" :style="trickSum === available ? 'color:#16a34a;font-weight:600' : trickSum > available ? 'color:#dc2626' : ''">
+            Stiche: {{ trickSum }} / {{ available }}
+          </span>
+        </div>
+        <div v-if="bombCount > 0" class="info" style="margin-top:4px">
+          💣 {{ bombCount }} Bombe{{ bombCount > 1 ? 'n' : '' }} → {{ available }} verfügbar
+        </div>
+      </div>
+
+      <!-- Special Cards -->
+      <div style="margin-bottom:16px">
+        <button class="special-toggle" @click="specialOpen = !specialOpen">
+          <span>✨ Sonderkarten
+            <span v-if="bombCount > 0" style="color:#f97316"> 💣{{bombCount}}</span>
+            <span v-if="cloudCount > 0" style="color:#3b82d4"> ☁️{{cloudCount}}</span>
+          </span>
+          <span>{{ specialOpen ? '▲' : '▼' }}</span>
+        </button>
+        <div v-if="specialOpen" class="special-body">
+          <div style="flex:1">
+            <div style="display:flex;gap:6px;align-items:center">
+              <button class="special-btn bomb" @click="addBomb" :disabled="available <= 0">💣 Bombe</button>
+              <button v-if="bombCount > 0" @click="removeBomb"
+                style="padding:6px;background:#fee2e2;border:none;border-radius:6px;cursor:pointer;font-size:12px;color:#dc2626">✕</button>
+            </div>
+          </div>
+          <div style="flex:1">
+            <div style="display:flex;gap:6px;align-items:center">
+              <button class="special-btn cloud" @click="openCloudPicker">☁️ Wolke</button>
+              <button v-if="cloudCount > 0" @click="removeCloud"
+                style="padding:6px;background:#fee2e2;border:none;border-radius:6px;cursor:pointer;font-size:12px;color:#dc2626">✕</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Cloud Picker -->
+      <div v-if="cloudPickerId === 'picking'" class="card" style="margin-bottom:16px">
+        <p style="font-weight:600;margin-bottom:10px">☁️ Wolke: Welcher Spieler, welche Richtung?</p>
+        <div v-for="p in game.players" :key="p.id" style="margin-bottom:8px">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span>{{ p.name }}</span>
+            <div style="display:flex;gap:6px">
+              <button class="special-btn cloud" style="padding:6px 12px" @click="applyCloud(p.id, 'increase')">+1</button>
+              <button class="special-btn cloud" style="padding:6px 12px" @click="applyCloud(p.id, 'decrease')">−1</button>
+            </div>
+          </div>
+        </div>
+        <button class="btn btn-secondary" style="margin-top:8px" @click="cloudPickerId = null">Abbrechen</button>
+      </div>
+
+      <!-- Trick inputs -->
+      <div v-for="player in game.players" :key="player.id">
+        <div class="player-row">
+          <div>
+            <div class="player-name">{{ player.name }}</div>
+            <div class="player-meta">
+              Ansage: {{ predictionFor(player.id)?.adjustedValue ?? '?' }}
+              <span v-if="predictionFor(player.id)?.cloudAdjustment" style="color:#3b82d4"> (☁️{{ predictionFor(player.id).originalValue }}→{{ predictionFor(player.id).adjustedValue }})</span>
+              · Gesamt: {{ cumulativeFor(player.id) }}
+            </div>
+          </div>
+          <div class="stepper">
+            <button @click="setTricks(player.id, trickDraft[player.id] - 1)"
+              :disabled="trickDraft[player.id] <= 0">−</button>
+            <span class="value">{{ trickDraft[player.id] }}</span>
+            <button @click="setTricks(player.id, trickDraft[player.id] + 1)"
+              :disabled="trickDraft[player.id] >= round.cardsPerPlayer">+</button>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="!isValid" class="warning" style="text-align:center;margin-top:12px">
+        Stiche müssen {{ available }} ergeben (aktuell {{ trickSum }})
+      </div>
+    </div>
+    <div class="sticky-footer" style="display:flex;gap:10px">
+      <button class="btn btn-secondary" style="flex:0 0 100px" @click="goBackToPrediction">← Ansagen</button>
+      <button class="btn btn-primary" style="flex:1" :disabled="!isValid" @click="submitTricks">Runde abschließen</button>
+    </div>
+  `,
+};
+
 // ─── App Root ────────────────────────────────────────────────────────────────
 
 const App = {
-  components: { HistoryScreen, SetupScreen, PredictionScreen },
+  components: { HistoryScreen, SetupScreen, PredictionScreen, TricksScreen },
   setup() {
     const inGame = computed(() => activeGame.value !== null && !['history', 'setup'].includes(state.currentScreen));
     const roundLabel = computed(() => {
@@ -370,6 +601,7 @@ const App = {
     <HistoryScreen v-if="state.currentScreen === 'history'" @navigate="navigate" />
     <SetupScreen v-else-if="state.currentScreen === 'setup'" @navigate="navigate" />
     <PredictionScreen v-else-if="state.currentScreen === 'prediction'" @navigate="navigate" />
+    <TricksScreen v-else-if="state.currentScreen === 'tricks'" @navigate="navigate" />
     <div v-else class="screen" style="display:flex;align-items:center;justify-content:center;color:#57606a">
       Weitere Screens folgen…
     </div>
