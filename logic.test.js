@@ -27,10 +27,10 @@ test('calculatePoints: miss', () => {
 });
 
 test('roundCount', () => {
-  assert.equal(roundCount(3), 20);
-  assert.equal(roundCount(4), 15);
-  assert.equal(roundCount(5), 12);
-  assert.equal(roundCount(6), 10);
+  assert.equal(roundCount(3), 22);
+  assert.equal(roundCount(4), 17);
+  assert.equal(roundCount(5), 13);
+  assert.equal(roundCount(6), 11);
 });
 
 test('dealerSeatIndex', () => {

@@ -5,7 +5,7 @@ export function calculatePoints(predicted, actual) {
 }
 
 export function roundCount(playerCount) {
-  return ({ 3: 20, 4: 15, 5: 12, 6: 10 })[playerCount] ?? 0;
+  return ({ 3: 22, 4: 17, 5: 13, 6: 11 })[playerCount] ?? 0;
 }
 
 export function dealerSeatIndex(roundNumber, playerCount) {
